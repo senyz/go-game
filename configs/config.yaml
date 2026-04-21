@@ -1,0 +1,15 @@
+server:
+  port: 8080
+  host: "localhost"
+
+database:
+  dialect: "postgres"
+  dsn: "host=localhost user=go_game password=secret dbname=go_game port=5432 sslmode=disable"
+
+messenger:
+  api_url: "https://api.max.messenger.com"
+  token: "your-bot-token"
+
+logging:
+  level: "info"
+  format: "json"
