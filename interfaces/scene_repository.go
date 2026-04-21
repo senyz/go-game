@@ -1,7 +1,10 @@
-// repository/scene_repository.go
+// interfaces/scene_repository.go
 package interfaces
 
+import "github.com/senyz/go-game/internal/models"
+
 type SceneRepository interface {
-    GetSceneByID(id uint) (*Scene, error)
-    GetNextScene(currentSceneID uint, isCorrect bool) (*Scene, error)
+	GetFirstSceneByStoryID(uint) (*models.Scene, error)
+	GetSceneByID(id uint) (*models.Scene, error)
+	GetNextScene(currentSceneID uint, isCorrect bool) (*models.Scene, error)
 }
