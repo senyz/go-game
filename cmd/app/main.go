@@ -32,16 +32,16 @@ func main() {
 	}
 	appLogger.Info("Database connected")
 
-	// Выполняем миграции
-	migrator := migration.NewMigrator(database.DB)
+	// Выполняем миграции с указанием диалекта
+	migrator := migration.NewMigrator(database, "./migrations", cfg.Database.Dialect)
 	if err := migrator.Run(); err != nil {
 		appLogger.Fatalf("Migrations failed: %v", err)
 	}
 	appLogger.Info("All migrations applied successfully")
 
 	// Создаём репозитории после успешного применения миграций
-	userRepo := repository.NewUserRepository(database.DB)
-	sceneRepo := repository.NewSceneRepository(database.DB)
+	userRepo := repository.NewUserRepository(database)
+	sceneRepo := repository.NewSceneRepository(database)
 
 	// Тестирование репозиториев (опционально, для отладки)
 	testRepositories(appLogger, userRepo, sceneRepo)

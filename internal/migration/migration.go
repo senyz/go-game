@@ -1,43 +1,52 @@
 package migration
 
 import (
-	"embed"
-	"io/fs"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"gorm.io/gorm"
 )
 
-//go:embed migrations/*.sql
-var migrationFiles embed.FS
-
 type Migrator struct {
-	db *gorm.DB
+	db      *gorm.DB
+	path    string
+	dialect string
 }
 
-func NewMigrator(db *gorm.DB) *Migrator {
-	return &Migrator{db: db}
+func NewMigrator(db *gorm.DB, migrationPath, dialect string) *Migrator {
+	return &Migrator{
+		db:      db,
+		path:    migrationPath,
+		dialect: dialect,
+	}
 }
 
 func (m *Migrator) Run() error {
-	// Получаем все файлы миграций
-	files, err := fs.ReadDir(migrationFiles, "migrations")
+	dialectPath := filepath.Join(m.path, m.dialect)
+
+	files, err := os.ReadDir(dialectPath)
 	if err != nil {
+		log.Printf("Failed to read migration directory %s: %v", dialectPath, err)
 		return err
 	}
 
 	for _, file := range files {
-		content, err := migrationFiles.ReadFile("migrations/" + file.Name())
-		if err != nil {
-			return err
-		}
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".sql") {
+			content, err := os.ReadFile(filepath.Join(dialectPath, file.Name()))
+			if err != nil {
+				log.Printf("Failed to read file %s: %v", file.Name(), err)
+				return err
+			}
 
-		// Выполняем миграцию
-		if err := m.db.Exec(string(content)).Error; err != nil {
-			log.Printf("Migration %s failed: %v", file.Name(), err)
-			return err
+			// Выполняем каждый файл как отдельный запрос
+			if err := m.db.Exec(string(content)).Error; err != nil {
+				log.Printf("Migration %s failed: %v", file.Name(), err)
+				return err
+			}
+			log.Printf("Migration %s applied successfully", file.Name())
 		}
-		log.Printf("Migration %s applied successfully", file.Name())
 	}
 	return nil
 }

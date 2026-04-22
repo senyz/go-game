@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_DB: go_game
+      POSTGRES_USER: go_game
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  mariadb:
+    image: mariadb
+    environment:
+      MYSQL_DATABASE: go_game
+      MYSQL_USER: go_game
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: rootsecret
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_DIALECT: ${DB_DIALECT:-postgres}
+      DB_DSN: ${DB_DSN}
+    depends_on:
+      - postgres
+      - mariadb
+    command: >
+      sh -c "
+        sleep 10 &&
+        go run cmd/app/main.go
+      "
+
+volumes:
+  postgres_data:
+  mariadb_data:
