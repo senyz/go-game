@@ -9,8 +9,10 @@ database:
   dsn: "go_game:secret@tcp(localhost:3306)/go_game?charset=utf8mb4&parseTime=True&loc=Local"
 
 messenger:
-  api_url: "https://api.max.messenger.com"
-  token: "your-bot-token"
+  api_url: "https://platform-api.max.ru/v1"  # реальный API MAX
+  token: "your_bot_token_here"               # токен вашего бота
+  webhook_url: ""  # если пусто, будет использован long polling
+  use_webhook: false  # true для webhook, false для long polling
 
 logging:
   level: "info"

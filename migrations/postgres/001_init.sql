@@ -1,5 +1,5 @@
 -- migrations/001_init.sql
-CREATE TABLE users IF NOT EXISTS(
+CREATE TABLE  IF NOT EXISTS users(
     id SERIAL PRIMARY KEY,
     username VARCHAR(255) UNIQUE NOT NULL,
     progress INTEGER DEFAULT 0,
@@ -7,14 +7,14 @@ CREATE TABLE users IF NOT EXISTS(
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE stories IF NOT EXISTS(
+CREATE TABLE IF NOT EXISTS stories (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT,
     is_active BOOLEAN DEFAULT TRUE
 );
 
-CREATE TABLE scenes IF NOT EXISTS(
+CREATE TABLE  IF NOT EXISTS scenes(
     id SERIAL PRIMARY KEY,
     story_id INTEGER REFERENCES stories(id),
     title VARCHAR(255),
@@ -26,7 +26,7 @@ CREATE TABLE scenes IF NOT EXISTS(
     failure_scene_id INTEGER
 );
 
-CREATE TABLE user_progress IF NOT EXISTS(
+CREATE TABLE  IF NOT EXISTS user_progress(
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id),
     scene_id INTEGER REFERENCES scenes(id),

@@ -1,5 +1,5 @@
 -- Добавляем сюжет «Канат бесконечности»
-INSERT INTO stories (title, description, is_active) VALUES (
+INSERT INTO stories (title, description, is_active) VALUES 
 ('Канат бесконечности', 'Спасение портала на планете Верёвия', TRUE);
 
 -- Добавляем сцены для сюжета
