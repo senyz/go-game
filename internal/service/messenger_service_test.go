@@ -3,72 +3,43 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/senyz/go-game/interfaces"
 	"github.com/senyz/go-game/internal/models"
+	"github.com/senyz/go-game/internal/repository"
 	"github.com/senyz/go-game/pkg/messenger"
 )
 
-// MockUserRepository - полная реализация интерфейса UserRepository
-type MockUserRepository struct {
-	users  map[uint]*models.User
-	nextID uint
-}
-
-func NewMockUserRepository() *MockUserRepository {
-	return &MockUserRepository{
-		users:  make(map[uint]*models.User),
-		nextID: 1,
-	}
-}
-
-func (m *MockUserRepository) CreateUser(username string) (*models.User, error) {
-	user := &models.User{
-		ID:       m.nextID,
-		Username: username,
-		Progress: 0,
-		Score:    0,
-	}
-	m.users[user.ID] = user
-	m.nextID++
-	return user, nil
-}
-
-func (m *MockUserRepository) GetUserByID(id uint) (*models.User, error) {
-	if user, ok := m.users[id]; ok {
-		return user, nil
-	}
-	return nil, nil // record not found
-}
-
-func (m *MockUserRepository) FindByUsername(username string) (*models.User, error) {
-	for _, user := range m.users {
-		if user.Username == username {
-			return user, nil
-		}
-	}
-	return nil, nil // not found
-}
-
-func (m *MockUserRepository) UpdateUserProgress(userID, sceneID uint, completed bool) error {
-	if user, ok := m.users[userID]; ok {
-		user.Progress = sceneID
-		return nil
-	}
-	return nil
-}
-
 // MockGameService - полная реализация интерфейса GameService
 type MockGameService struct {
-	scenes         map[uint]*models.Scene
-	currentSceneID uint
+	scenes   map[uint]*models.Scene // Сцены по ID
+	users    map[uint]*models.User  // Пользователи по ID
+	progress map[uint]uint          // Прогресс: userID → sceneID
+	userRepo interfaces.UserRepository
 }
 
-func NewMockGameService() *MockGameService {
+func NewMockGameService(userRepo interfaces.UserRepository) *MockGameService {
 	return &MockGameService{
-		scenes: make(map[uint]*models.Scene),
+		scenes:   make(map[uint]*models.Scene),
+		users:    make(map[uint]*models.User),
+		progress: make(map[uint]uint),
+		userRepo: userRepo,
 	}
+}
+
+func (m *MockGameService) GetCurrentSceneID(userID uint) (uint, error) {
+	if sceneID, ok := m.progress[userID]; ok {
+		return sceneID, nil
+	}
+	return 0, fmt.Errorf("user progress not found")
+}
+
+// SetUserProgress устанавливает прогресс пользователя для тестирования
+func (m *MockGameService) SetUserProgress(userID uint, sceneID uint) {
+	m.progress[userID] = sceneID
 }
 
 func (m *MockGameService) StartGame(userID uint, storyID uint) (*models.Scene, error) {
@@ -123,10 +94,6 @@ func (m *MockGameService) GetHint(sceneID uint) (string, error) {
 	return "No hint available", nil
 }
 
-func (m *MockGameService) GetCurrentSceneID(userID uint) (uint, error) {
-	return m.currentSceneID, nil
-}
-
 func (m *MockGameService) GetSceneByID(sceneID uint) (*models.Scene, error) {
 	if scene, ok := m.scenes[sceneID]; ok {
 		return scene, nil
@@ -143,29 +110,66 @@ func (m *MockGameService) AddScene(scene *models.Scene) {
 	m.scenes[scene.ID] = scene
 }
 
+func (m *MockGameService) CheckAnswer(userID uint, sceneID uint, answer string) (bool, uint, error) {
+	scene, ok := m.scenes[sceneID]
+	if !ok {
+		return false, 0, fmt.Errorf("scene not found: %d", sceneID)
+	}
+
+	isCorrect := (scene.CorrectAnswer == answer)
+	var nextSceneID uint
+
+	if isCorrect {
+		if scene.NextSceneID != nil {
+			nextSceneID = *scene.NextSceneID
+		} else {
+			nextSceneID = sceneID // Остаёмся на текущей сцене
+		}
+	} else {
+		if scene.FailureSceneID != nil {
+			nextSceneID = *scene.FailureSceneID
+		} else {
+			nextSceneID = sceneID // Остаёмся на текущей сцене
+		}
+	}
+
+	// Обновляем прогресс пользователя
+	m.progress[userID] = nextSceneID
+
+	return isCorrect, nextSceneID, nil
+}
+
+func (m *MockGameService) GetUserProgress(userID uint) ([]models.UserProgress, error) {
+	// Делегируем вызов реальному репозиторию
+	return m.userRepo.GetUserProgress(userID)
+}
+
 func TestMessengerService_ProcessIncomingMessage(t *testing.T) {
-	// Создаём моки
 	mockMessenger := messenger.NewMockClient()
-	mockUserRepo := NewMockUserRepository()
-	mockGameService := NewMockGameService()
+	mockUserRepo := repository.NewMockUserRepository()
+	mockGameService := NewMockGameService(mockUserRepo)
+
+	// Создаём пользователя
+	user, _ := mockUserRepo.CreateUser("test_user")
 
 	// Добавляем тестовую сцену
-	mockGameService.AddScene(&models.Scene{
+	scene := &models.Scene{
 		ID:            1,
 		StoryID:       1,
 		Title:         "Math Test",
 		Description:   "Solve this problem",
 		Question:      "2 + 2 = ?",
 		CorrectAnswer: "4",
-		Hint:          "Add two and two",
-		NextSceneID:   nil,
-	})
+	}
+	mockGameService.AddScene(scene)
+
+	// Устанавливаем начальный прогресс пользователя
+	mockGameService.SetUserProgress(user.ID, 1)
 
 	service := NewMessengerService(mockMessenger, mockGameService, mockUserRepo)
 
-	// Тестовое сообщение
-	msg := &interfaces.IncomingMessage{
-		UserID:    "test_user_123",
+	msg := &models.IncomingMessage{
+		UserID:    user.Username,
 		MessageID: "msg_001",
 		Text:      "4",
 		ChatID:    "chat_001",
@@ -178,71 +182,88 @@ func TestMessengerService_ProcessIncomingMessage(t *testing.T) {
 		t.Errorf("Expected no error, got %v", err)
 	}
 
-	// Проверяем, что сообщение было отправлено
 	sent := mockMessenger.GetSentMessages()
+	t.Logf("Sent messages count: %d", len(sent))
+	t.Logf("Sent messages: %+v", sent)
+
 	if len(sent) == 0 {
 		t.Error("Expected message to be sent")
+	} else {
+		if !strings.Contains(sent[0].Text, "Solve") && !strings.Contains(sent[0].Text, "2 + 2") {
+			t.Errorf("Unexpected message text: %s", sent[0].Text)
+		}
 	}
-
-	t.Logf("Sent messages: %+v", sent)
 }
 
-func TestMessengerService_NewUser(t *testing.T) {
+func TestMessengerService_CorrectAnswer(t *testing.T) {
 	mockMessenger := messenger.NewMockClient()
-	mockUserRepo := NewMockUserRepository()
-	mockGameService := NewMockGameService()
+	mockUserRepo := repository.NewMockUserRepository()
+	mockGameService := NewMockGameService(mockUserRepo)
+
+	user, _ := mockUserRepo.CreateUser("test_user")
+	// Устанавливаем начальный прогресс пользователя (сцена 1)
+	mockGameService.SetUserProgress(user.ID, 1)
+
+	nextScene := &models.Scene{ID: 2, Description: "You answered correctly!"}
+	currentScene := &models.Scene{
+		ID:             1,
+		StoryID:        1,
+		CorrectAnswer:  "4",
+		NextSceneID:    func(id uint) *uint { return &id }(2),
+		FailureSceneID: func(id uint) *uint { return &id }(99),
+	}
+
+	mockGameService.AddScene(currentScene)
+	mockGameService.AddScene(nextScene)
 
 	service := NewMessengerService(mockMessenger, mockGameService, mockUserRepo)
 
-	// Новый пользователь
-	msg := &interfaces.IncomingMessage{
-		UserID: "brand_new_user",
-		Text:   "start",
-	}
-
+	msg := &models.IncomingMessage{UserID: user.Username, Text: "4"}
 	ctx := context.Background()
 	err := service.ProcessIncomingMessage(ctx, msg)
 	if err != nil {
-		t.Errorf("Expected no error for new user, got %v", err)
+		t.Errorf("Expected no error, got %v", err)
 	}
 
-	// Проверяем, что пользователь был создан
 	sent := mockMessenger.GetSentMessages()
 	if len(sent) == 0 {
-		t.Error("Expected welcome message for new user")
+		t.Error("Expected message to be sent")
+	} else if !strings.Contains(sent[0].Text, "correctly") {
+		t.Errorf("Expected correct answer message, got: %s", sent[0].Text)
 	}
 }
 
 func TestMessengerService_WrongAnswer(t *testing.T) {
 	mockMessenger := messenger.NewMockClient()
-	mockUserRepo := NewMockUserRepository()
-	mockGameService := NewMockGameService()
+	mockUserRepo := repository.NewMockUserRepository()
+	mockGameService := NewMockGameService(mockUserRepo)
 
-	// Создаём пользователя
 	user, _ := mockUserRepo.CreateUser("test_user")
 
-	// Добавляем сцену с неправильным ответом
 	failureScene := &models.Scene{
 		ID:          99,
+		StoryID:     1,
 		Title:       "Wrong Answer",
 		Description: "That's incorrect! Try again.",
-		Question:    "Try again: 2 + 2 = ?",
 	}
 
-	mockGameService.AddScene(&models.Scene{
+	currentScene := &models.Scene{
 		ID:             1,
+		StoryID:        1,
 		Title:          "First Question",
 		Description:    "What is 2 + 2?",
 		Question:       "2 + 2 = ?",
 		CorrectAnswer:  "4",
-		FailureSceneID: &failureScene.ID,
-	})
-	mockGameService.AddScene(failureScene)
+		FailureSceneID: func(id uint) *uint { return &id }(99),
+	}
 
+	mockGameService.AddScene(currentScene)
+	mockGameService.AddScene(failureScene)
+	// Устанавливаем начальный прогресс пользователя (сцена 1)
+	mockGameService.SetUserProgress(user.ID, 1)
 	service := NewMessengerService(mockMessenger, mockGameService, mockUserRepo)
 
-	// Отправляем неправильный ответ
-	msg := &interfaces.IncomingMessage{
+	msg := &models.IncomingMessage{
 		UserID: user.Username,
 		Text:   "5", // неправильный ответ
 	}
@@ -258,8 +279,131 @@ func TestMessengerService_WrongAnswer(t *testing.T) {
 		t.Error("Expected error message to be sent")
 	}
 
-	// Проверяем, что сообщение содержит информацию об ошибке
-	if len(sent) > 0 && sent[0].Text == "" {
-		t.Error("Expected non-empty error message")
+	// Проверяем сообщение об ошибке
+	if !strings.Contains(sent[0].Text, "incorrect") {
+		t.Error("Expected incorrect answer message")
+	}
+}
+
+func TestMessengerService_NewUser(t *testing.T) {
+	mockMessenger := messenger.NewMockClient()
+	mockUserRepo := repository.NewMockUserRepository()
+	mockGameService := NewMockGameService(mockUserRepo)
+
+	service := NewMessengerService(mockMessenger, mockGameService, mockUserRepo)
+
+	msg := &models.IncomingMessage{
+		UserID: "brand_new_user",
+		Text:   "start",
+	}
+	user, _ := mockUserRepo.CreateUser("brand_new_user")
+	// Устанавливаем начальный прогресс пользователя (сцена 1)
+	mockGameService.SetUserProgress(user.ID, 1)
+	ctx := context.Background()
+	err := service.ProcessIncomingMessage(ctx, msg)
+	if err != nil {
+		t.Errorf("Expected no error for new user, got %v", err)
+	}
+
+	sent := mockMessenger.GetSentMessages()
+	if len(sent) == 0 {
+		t.Error("Expected welcome message for new user")
+	}
+
+	// Проверяем создание пользователя
+	newUser, err := mockUserRepo.GetUserByUsername("brand_new_user")
+	if err != nil || newUser == nil {
+		t.Error("Expected user to be created")
+	}
+}
+
+func TestMessengerService_NoNextScene(t *testing.T) {
+	mockMessenger := messenger.NewMockClient()
+	mockUserRepo := repository.NewMockUserRepository()
+	mockGameService := NewMockGameService(mockUserRepo)
+
+	user, _ := mockUserRepo.CreateUser("test_user")
+
+	finalScene := &models.Scene{
+		ID:          3,
+		Title:       "Final Scene",
+		Description: "Congratulations! You completed the story!",
+		// NextSceneID и FailureSceneID не указаны
+	}
+
+	mockGameService.AddScene(finalScene)
+	// Устанавливаем начальный прогресс пользователя (сцена 3)
+	mockGameService.SetUserProgress(user.ID, 3)
+	service := NewMessengerService(mockMessenger, mockGameService, mockUserRepo)
+
+	msg := &models.IncomingMessage{
+		UserID: user.Username,
+		Text:   "any answer", // любой ответ в финальной сцене
+	}
+
+	ctx := context.Background()
+	err := service.ProcessIncomingMessage(ctx, msg)
+	if err != nil {
+		t.Errorf("Expected no error in final scene, got %v", err)
+	}
+
+	sent := mockMessenger.GetSentMessages()
+	if len(sent) == 0 {
+		t.Error("Expected completion message")
+	}
+
+	if !strings.Contains(sent[0].Text, "Congratulations") {
+		t.Error("Expected completion message")
+	}
+}
+
+func TestMessengerService_GetUserProgress(t *testing.T) {
+	mockMessenger := messenger.NewMockClient()
+	mockUserRepo := repository.NewMockUserRepository()
+	mockGameService := NewMockGameService(mockUserRepo)
+
+	// Создаём пользователя
+	user, _ := mockUserRepo.CreateUser("test_user")
+
+	// Устанавливаем прогресс пользователя
+	_ = mockUserRepo.UpdateUserProgress(user.ID, 5, false)
+
+	_ = NewMessengerService(mockMessenger, mockGameService, mockUserRepo)
+
+	// Получаем прогресс пользователя
+	progress, err := mockUserRepo.GetUserProgress(user.ID)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	if len(progress) == 0 {
+		t.Error("Expected user progress to be returned")
+	}
+
+	if progress[0].SceneID != 5 {
+		t.Errorf("Expected scene ID 5, got %d", progress[0].SceneID)
+	}
+
+	if progress[0].IsCompleted {
+		t.Error("Expected IsCompleted to be false")
+	}
+}
+
+func TestMockClient_SendMessage(t *testing.T) {
+	client := messenger.NewMockClient()
+	ctx := context.Background()
+
+	err := client.SendMessage(ctx, "test_user", "Test message")
+	if err != nil {
+		t.Errorf("SendMessage failed: %v", err)
+	}
+
+	sent := client.GetSentMessages()
+	if len(sent) != 1 {
+		t.Errorf("Expected 1 message, got %d", len(sent))
+	}
+
+	if sent[0].Text != "Test message" {
+		t.Errorf("Expected 'Test message', got '%s'", sent[0].Text)
 	}
 }

@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+
 	"github.com/senyz/go-game/interfaces"
 	"github.com/senyz/go-game/internal/models"
 )
@@ -91,4 +93,39 @@ func (s *gameServiceImpl) GetCurrentSceneID(userID uint) (uint, error) {
 		return 0, err
 	}
 	return user.Progress, nil
+}
+
+func (s *gameServiceImpl) GetUserProgress(userID uint) ([]models.UserProgress, error) {
+	return s.userRepo.GetUserProgress(userID)
+}
+
+func (s *gameServiceImpl) CheckAnswer(userID uint, sceneID uint, answer string) (isCorrect bool, nextSceneID uint, err error) {
+	// Получаем текущую сцену
+	scene, err := s.sceneRepo.GetSceneByID(sceneID)
+	if err != nil {
+		return false, 0, err
+	}
+
+	// Проверяем правильность ответа
+	isCorrect = (scene.CorrectAnswer == answer)
+
+	// Определяем следующую сцену: при правильном ответе — основная ветка, при неправильном — альтернативная
+	if isCorrect {
+		nextSceneID = *scene.NextSceneID
+	} else {
+		nextSceneID = *scene.FailureSceneID
+	}
+
+	// Если следующая сцена не указана, возвращаем ошибку
+	if nextSceneID == 0 {
+		return isCorrect, 0, fmt.Errorf("no next scene defined for scene ID %d", sceneID)
+	}
+
+	// Обновляем прогресс пользователя в БД
+	err = s.userRepo.UpdateUserProgress(userID, nextSceneID, isCorrect)
+	if err != nil {
+		return isCorrect, 0, err
+	}
+
+	return isCorrect, nextSceneID, nil
 }

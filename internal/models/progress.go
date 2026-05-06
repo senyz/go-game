@@ -1,13 +1,13 @@
-// models/user_progress.go
 package models
 
 import "time"
 
-type UserProgress struct {
+// Progress представляет прогресс пользователя в конкретной истории
+type Progress struct {
 	ID          int        `gorm:"primaryKey"`
-	UserID      uint       `gorm:"not null;index"`
-	StoryID     uint       `gorm:"not null;index"`
-	SceneID     uint       `gorm:"not null"`      // Текущая сцена
+	UserID      int        `gorm:"not null;index"`
+	StoryID     int        `gorm:"not null;index"`
+	SceneID     int        `gorm:"not null"`      // Текущая сцена
 	IsCompleted bool       `gorm:"default:false"` // Завершена ли история
 	CompletedAt *time.Time `gorm:"null"`          // Когда завершена (если завершена)
 	CreatedAt   time.Time  `gorm:"autoCreateTime"`

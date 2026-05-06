@@ -8,4 +8,5 @@ type UserRepository interface {
 	GetUserByID(id uint) (*models.User, error)
 	FindByUsername(username string) (*models.User, error)
 	UpdateUserProgress(userID, sceneID uint, completed bool) error
+	GetUserProgress(userID uint) ([]models.UserProgress, error)
 }

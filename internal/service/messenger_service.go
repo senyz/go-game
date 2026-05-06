@@ -30,7 +30,7 @@ func NewMessengerService(
 }
 
 // ProcessIncomingMessage обрабатывает входящее сообщение от пользователя
-func (m *MessengerService) ProcessIncomingMessage(ctx context.Context, msg *interfaces.IncomingMessage) error {
+func (m *MessengerService) ProcessIncomingMessage(ctx context.Context, msg *models.IncomingMessage) error {
 	// 1. Находим или создаём пользователя
 	userID, err := m.getOrCreateUser(msg.UserID)
 	if err != nil {
@@ -65,7 +65,7 @@ func (m *MessengerService) ProcessIncomingMessage(ctx context.Context, msg *inte
 }
 
 // startNewGame начинает новую игру для пользователя
-func (m *MessengerService) startNewGame(ctx context.Context, userID uint, msg *interfaces.IncomingMessage) error {
+func (m *MessengerService) startNewGame(ctx context.Context, userID uint, msg *models.IncomingMessage) error {
 	// Начинаем игру со story_id = 1
 	firstScene, err := m.gameService.StartGame(userID, 1)
 	if err != nil {

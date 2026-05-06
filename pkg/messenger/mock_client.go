@@ -5,14 +5,14 @@ import (
 	"context"
 	"sync"
 
-	"github.com/senyz/go-game/interfaces"
+	"github.com/senyz/go-game/internal/models"
 )
 
 // MockClient - мок для тестирования
 type MockClient struct {
 	mu            sync.RWMutex
 	sentMessages  []SentMessage
-	incomingQueue []*interfaces.IncomingMessage
+	incomingQueue []*models.IncomingMessage
 	webhookURL    string
 	shouldFail    bool
 	failError     error
@@ -26,7 +26,7 @@ type SentMessage struct {
 func NewMockClient() *MockClient {
 	return &MockClient{
 		sentMessages:  make([]SentMessage, 0),
-		incomingQueue: make([]*interfaces.IncomingMessage, 0),
+		incomingQueue: make([]*models.IncomingMessage, 0),
 	}
 }
 
@@ -39,7 +39,7 @@ func (m *MockClient) SetFailMode(shouldFail bool, err error) {
 }
 
 // AddIncomingMessage добавляет входящее сообщение в очередь
-func (m *MockClient) AddIncomingMessage(msg *interfaces.IncomingMessage) {
+func (m *MockClient) AddIncomingMessage(msg *models.IncomingMessage) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.incomingQueue = append(m.incomingQueue, msg)
@@ -57,12 +57,11 @@ func (m *MockClient) Clear() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sentMessages = make([]SentMessage, 0)
-	m.incomingQueue = make([]*interfaces.IncomingMessage, 0)
+	m.incomingQueue = make([]*models.IncomingMessage, 0)
 	m.shouldFail = false
 	m.failError = nil
 }
 
-// SendMessage реализация интерфейса
 func (m *MockClient) SendMessage(ctx context.Context, userID, text string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -79,7 +78,7 @@ func (m *MockClient) SendMessage(ctx context.Context, userID, text string) error
 }
 
 // ReceiveMessage реализация интерфейса
-func (m *MockClient) ReceiveMessage(ctx context.Context) (*interfaces.IncomingMessage, error) {
+func (m *MockClient) ReceiveMessage(ctx context.Context) (*models.IncomingMessage, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

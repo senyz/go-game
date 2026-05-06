@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/senyz/go-game/interfaces"
+	"github.com/senyz/go-game/internal/models"
 )
 
 func TestMockClient_SendMessage(t *testing.T) {
@@ -52,7 +52,7 @@ func TestMockClient_ReceiveMessage(t *testing.T) {
 	mock := NewMockClient()
 
 	// Добавляем тестовое сообщение
-	expectedMsg := &interfaces.IncomingMessage{
+	expectedMsg := &models.IncomingMessage{
 		UserID:    "user456",
 		MessageID: "msg001",
 		Text:      "2 + 2 = ?",
@@ -158,7 +158,7 @@ func TestMockClient_MultipleOperations(t *testing.T) {
 	}
 
 	// Добавляем входящее сообщение
-	incoming := &interfaces.IncomingMessage{
+	incoming := &models.IncomingMessage{
 		UserID: "user1",
 		Text:   "Answer",
 	}

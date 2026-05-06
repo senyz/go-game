@@ -51,6 +51,7 @@ func main() {
 	// Создаём репозитории после успешного применения миграций
 	userRepo := repository.NewUserRepository(database)
 	sceneRepo := repository.NewSceneRepository(database)
+	storyRepo := repository.NewStoryRepository(database)
 
 	// Тестирование репозиториев (опционально, для отладки)
 	testRepositories(appLogger, userRepo, sceneRepo)
@@ -58,13 +59,14 @@ func main() {
 	fmt.Println("Application is ready to start!")
 
 	// Передаём cfg в startServer
-	startServer(appLogger, userRepo, sceneRepo, cfg) // ← добавили cfg
+	startServer(appLogger, userRepo, sceneRepo, storyRepo, cfg) // ← добавили cfg
 }
 
 // Обновляем сигнатуру функции startServer
-func startServer(appLogger *logrus.Logger, userRepo interfaces.UserRepository, sceneRepo interfaces.SceneRepository, cfg *config.Config) {
+func startServer(appLogger *logrus.Logger, userRepo interfaces.UserRepository, sceneRepo interfaces.SceneRepository, storyRepo interfaces.StoryRepository, cfg *config.Config) {
 	// 1. Создаём сервис игры
 	gameService := service.NewGameService(userRepo, sceneRepo)
+	storyService := service.NewStoryService(storyRepo)
 
 	// 2. Создаём клиент мессенджера
 	var messengerClient interfaces.MessengerClient
@@ -82,12 +84,14 @@ func startServer(appLogger *logrus.Logger, userRepo interfaces.UserRepository, s
 
 	// 4. Создаём HTTP обработчик
 	webhookHandler := handler.NewWebhookHandler(gameService)
+	storyHandler := handler.NewStoryHandler(storyService)
 
 	// 5. Настраиваем Gin
 	router := gin.Default()
 	router.Use(gin.Recovery())
 	router.Use(gin.Logger())
 	router.POST("/webhook", webhookHandler.HandleMessage)
+	router.GET("/api/stories", storyHandler.GetStories)
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})

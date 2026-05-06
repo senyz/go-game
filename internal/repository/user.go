@@ -67,9 +67,9 @@ func (u *UserRepository) UpdateUserProgress(userID, sceneID uint, completed bool
 	if progress.ID == 0 {
 		// Создаём новую запись прогресса
 		progress = models.UserProgress{
-			UserID:    userID,
-			SceneID:   sceneID,
-			Completed: completed,
+			UserID:      userID,
+			SceneID:     sceneID,
+			IsCompleted: completed,
 		}
 		if createErr := u.db.Create(&progress).Error; createErr != nil {
 			log.Printf("Failed to create user progress: %v", createErr)
@@ -95,4 +95,15 @@ func (u *UserRepository) FindByUsername(username string) (*models.User, error) {
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (u *UserRepository) GetUserProgress(userID uint) ([]models.UserProgress, error) {
+	var progress []models.UserProgress
+	if err := u.db.Where("user_id = ?", userID).Find(&progress).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return progress, nil
 }

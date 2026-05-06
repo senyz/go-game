@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/senyz/go-game/interfaces"
+	"github.com/senyz/go-game/internal/models"
 )
 
 // MAXClient реализует интерфейс MessengerClient для MAX API
@@ -71,7 +71,7 @@ func (m *MAXClient) SendMessage(ctx context.Context, userID, text string) error 
 }
 
 // ReceiveMessage получает сообщение (для Long Polling)
-func (m *MAXClient) ReceiveMessage(ctx context.Context) (*interfaces.IncomingMessage, error) {
+func (m *MAXClient) ReceiveMessage(ctx context.Context) (*models.IncomingMessage, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
 		m.apiURL+"/messages/updates", nil)
 	if err != nil {
@@ -102,7 +102,7 @@ func (m *MAXClient) ReceiveMessage(ctx context.Context) (*interfaces.IncomingMes
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return &interfaces.IncomingMessage{
+	return &models.IncomingMessage{
 		UserID:    incoming.UserID,
 		MessageID: incoming.MessageID,
 		Text:      incoming.Text,
