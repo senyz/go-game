@@ -17,8 +17,9 @@ type Config struct {
 	Messenger struct {
 		APIURL     string `mapstructure:"api_url"`
 		Token      string `mapstructure:"token"`
-		WebhookURL string `mapstructure:"webhook_url"` // добавляем
-		UseWebhook bool   `mapstructure:"use_webhook"` // добавляем
+		WebhookURL string `mapstructure:"webhook_url"`
+		UseWebhook bool   `mapstructure:"use_webhook"`
+		IsTest     bool   `mapstructure:"is_test"`
 	} `mapstructure:"messenger"`
 
 	Logging struct {

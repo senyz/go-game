@@ -68,20 +68,6 @@ func startServer(appLogger *logrus.Logger, userRepo interfaces.UserRepository, s
 	gameService := service.NewGameService(userRepo, sceneRepo)
 	storyService := service.NewStoryService(storyRepo)
 
-	// 2. Создаём клиент мессенджера
-	var messengerClient interfaces.MessengerClient
-	if cfg.Messenger.UseWebhook {
-		messengerClient = messenger.NewMAXClient(cfg.Messenger.APIURL, cfg.Messenger.Token)
-		if err := messengerClient.SetWebhook(context.Background(), cfg.Messenger.WebhookURL); err != nil {
-			appLogger.Warnf("Failed to set webhook: %v", err)
-		}
-	} else {
-		messengerClient = messenger.NewMAXClient(cfg.Messenger.APIURL, cfg.Messenger.Token)
-	}
-
-	// 3. Создаём сервис мессенджера
-	messengerService := service.NewMessengerService(messengerClient, gameService, userRepo)
-
 	// 4. Создаём HTTP обработчик
 	webhookHandler := handler.NewWebhookHandler(gameService)
 	storyHandler := handler.NewStoryHandler(storyService)
@@ -102,17 +88,36 @@ func startServer(appLogger *logrus.Logger, userRepo interfaces.UserRepository, s
 		Handler: router,
 	}
 
-	// 7. Запускаем long polling (если не используется webhook)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// 7. Создаём клиент мессенджера
+	if cfg.Messenger.IsTest != false {
 
-	if !cfg.Messenger.UseWebhook {
-		go func() {
-			appLogger.Info("Starting long polling for messages...")
-			if err := messengerService.RunLongPolling(ctx); err != nil {
-				appLogger.Errorf("Long polling error: %v", err)
+		var messengerClient interfaces.MessengerClient
+		if cfg.Messenger.UseWebhook {
+			messengerClient = messenger.NewMAXClient(cfg.Messenger.APIURL, cfg.Messenger.Token)
+			if err := messengerClient.SetWebhook(context.Background(), cfg.Messenger.WebhookURL); err != nil {
+				appLogger.Warnf("Failed to set webhook: %v", err)
 			}
-		}()
+		} else {
+			messengerClient = messenger.NewMAXClient(cfg.Messenger.APIURL, cfg.Messenger.Token)
+		}
+
+		// Создаём сервис мессенджера
+		messengerService := service.NewMessengerService(messengerClient, gameService, userRepo)
+
+		//  Запускаем long polling (если не используется webhook)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		if !cfg.Messenger.UseWebhook {
+			go func() {
+				appLogger.Info("Starting long polling for messages...")
+				if err := messengerService.RunLongPolling(ctx); err != nil {
+					appLogger.Errorf("Long polling error: %v", err)
+				}
+			}()
+		}
+		// Отменяем контекст для long polling
+		cancel()
 	}
 
 	// 8. Graceful shutdown
@@ -129,9 +134,6 @@ func startServer(appLogger *logrus.Logger, userRepo interfaces.UserRepository, s
 	<-quit
 
 	appLogger.Info("Shutting down server...")
-
-	// Отменяем контекст для long polling
-	cancel()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
