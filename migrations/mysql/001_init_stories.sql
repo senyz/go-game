@@ -4,3 +4,4 @@ CREATE TABLE IF NOT EXISTS stories  (
     description TEXT,
     is_active TINYINT(1) DEFAULT 1
 );
+
