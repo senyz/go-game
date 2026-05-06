@@ -10,3 +10,4 @@ CREATE TABLE IF NOT EXISTS scenes(
     failure_scene_id INT,
     FOREIGN KEY (story_id) REFERENCES stories(id)
 );
+
